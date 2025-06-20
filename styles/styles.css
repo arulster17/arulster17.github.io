@@ -1,0 +1,26 @@
+html {
+  --bgrd-color: rgb(41, 41, 41);
+  --text-color: rgb(65, 200, 95);
+  --font-size: 1rem;
+  --padding: 1rem;
+  --font: 'epicfont'
+}
+
+@font-face {
+    font-family: 'epicfont';
+    src: url('/fonts/FSEX300.ttf') format('truetype');
+}
+
+body {
+    background-color: var(--bgrd-color);
+    color: var(--text-color);
+    font-family: var(--font);
+}
+
+nav {
+  float: right;
+}
+
+.nav-item {
+  color: var(--text-color);
+}
