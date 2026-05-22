@@ -8,7 +8,7 @@
   let cwd = '~';
 
   function promptStr() {
-    return 'arul@mathur:' + cwd + '$';
+    return 'arul:' + cwd + '$';
   }
 
   // ── Active prompt refs ────────────────────────────────
@@ -19,6 +19,8 @@
   let currentText = '';
   let cmdHistory  = [];
   let histIdx     = -1;
+  let completionHintEl = null;
+  let completionCycle  = null; // { candidates, prefix, idx } while cycling
 
   // ── Output helpers ────────────────────────────────────
 
@@ -60,25 +62,38 @@
   const FS = {
     '~': {
       type: 'dir',
-      entries: ['about', 'resume.pdf', 'projects', 'blog'],
+      entries: ['about', 'github', 'linkedin', 'resume', 'projects', 'blog'],
     },
 
     '~/about': {
       type: 'file',
       show() {
-        blank();
         // TODO: replace with your actual bio
-        line('<span class="c-dim">&lt;!-- TODO: add your bio here --&gt;</span>');
+        line('<span class="c-muted">&lt;!-- TODO: add your bio here --&gt;</span>');
         blank();
       },
     },
 
-    '~/resume.pdf': {
+    '~/github': {
       type: 'file',
       show() {
-        window.open('/Arul%20Mathur%20Resume.pdf', '_blank', 'noopener');
+        line('<span class="c-accent">↗ </span>' + aext('https://github.com/arulster17', 'github.com/arulster17'));
         blank();
-        line('<span class="c-accent">↗</span> opening resume.pdf...');
+      },
+    },
+
+    '~/linkedin': {
+      type: 'file',
+      show() {
+        line('<span class="c-accent">↗ </span>' + aext('https://www.linkedin.com/in/arulster17/', 'linkedin.com/in/arulster17'));
+        blank();
+      },
+    },
+
+    '~/resume': {
+      type: 'file',
+      show() {
+        line('<span class="c-accent">↗ </span>' + aext('/Arul%20Mathur%20Resume.pdf', 'resume.pdf'));
         blank();
       },
     },
@@ -91,7 +106,6 @@
     '~/projects/research': {
       type: 'file',
       show() {
-        blank();
         // TODO: replace with your actual research project
         line('<span class="bold">&lt;!-- TODO: research project name --&gt;</span>');
         line('<span class="chip">research</span> <span class="chip">ucsd</span>');
@@ -104,7 +118,6 @@
     '~/projects/course-project-1': {
       type: 'file',
       show() {
-        blank();
         // TODO: replace with your actual course project
         line('<span class="bold">&lt;!-- TODO: course project name --&gt;</span>');
         line('<span class="chip">course project</span>');
@@ -117,7 +130,6 @@
     '~/projects/course-project-2': {
       type: 'file',
       show() {
-        blank();
         // TODO: replace with your actual course project
         line('<span class="bold">&lt;!-- TODO: course project name --&gt;</span>');
         line('<span class="chip">course project</span>');
@@ -145,8 +157,7 @@
   };
 
   function postComingSoon() {
-    blank();
-    line('<span class="c-dim">[coming soon]</span>');
+    line('<span class="c-muted">[coming soon]</span>');
     blank();
   }
 
@@ -181,7 +192,7 @@
     div.innerHTML =
       '<span class="prompt">' + esc(promptStr()) + '&nbsp;</span>' +
       '<span class="typed-text"></span>' +
-      '<span class="cursor">▋</span>';
+      '<span class="cursor">█</span>';
     termEl.appendChild(div);
     activeTypedEl  = div.querySelector('.typed-text');
     activeCursorEl = div.querySelector('.cursor');
@@ -189,6 +200,8 @@
   }
 
   function freezePrompt(text) {
+    if (completionHintEl) { completionHintEl.remove(); completionHintEl = null; }
+    completionCycle = null;
     if (activeTypedEl)  activeTypedEl.textContent = text;
     if (activeCursorEl) activeCursorEl.remove();
     activeTypedEl  = activeCursorEl = null;
@@ -201,33 +214,28 @@
   // ── Commands ──────────────────────────────────────────
 
   function cmdHelp() {
-    blank();
     line('<span class="out-heading">commands</span>');
     rule();
-    blank();
     [
-      ['ls',            'list directory contents'],
-      ['cd &lt;dir&gt;',      'navigate into a directory'],
-      ['cd ..',         'go up one level'],
-      ['cat &lt;file&gt;',    'read a file'],
-      ['pwd',           'show current path'],
-      ['open github',   'github.com/arulster17'],
-      ['open linkedin', 'linkedin.com/in/arulster17'],
-      ['clear',         'clear the terminal'],
-      ['help',          'show this message'],
+      ['ls',           'list directory contents'],
+      ['cd &lt;dir&gt;',     'navigate into a directory'],
+      ['cd ..',        'go up one level'],
+      ['cat &lt;file&gt;',   'read a file'],
+      ['pwd',          'show current path'],
+      ['clear',        'clear the terminal'],
+      ['help',         'show this message'],
     ].forEach(([name, desc]) => {
       line('  <span class="c-accent">' + name + '</span>  '
         + '<span class="c-muted">→ ' + esc(desc) + '</span>');
     });
     blank();
-    line('<span class="c-dim">  ↑↓ history  ·  tab completion</span>');
+    line('<span class="c-muted">  ↑↓ history  ·  tab completion</span>');
     blank();
   }
 
   function cmdLs() {
     const node = FS[cwd];
     if (!node || node.type !== 'dir') return;
-    blank();
     node.entries.forEach(name => {
       const childPath = cwd === '~' ? '~/' + name : cwd + '/' + name;
       const child     = FS[childPath];
@@ -249,13 +257,11 @@
     const node = FS[path];
 
     if (!node) {
-      blank();
       line('<span class="c-error">cd: ' + esc(target) + ': no such directory</span>');
       blank();
       return;
     }
     if (node.type === 'file') {
-      blank();
       line('<span class="c-error">cd: ' + esc(target) + ': not a directory</span>');
       blank();
       return;
@@ -264,7 +270,6 @@
     cwd = path;
 
     if (node.desc) {
-      blank();
       line('<span class="c-muted">' + esc(node.desc) + '</span>');
       blank();
     }
@@ -272,7 +277,6 @@
 
   function cmdCat(args) {
     if (!args[0]) {
-      blank();
       line('<span class="c-error">cat: missing filename</span>');
       blank();
       return;
@@ -281,13 +285,11 @@
     const node = FS[path];
 
     if (!node) {
-      blank();
       line('<span class="c-error">cat: ' + esc(args[0]) + ': no such file or directory</span>');
       blank();
       return;
     }
     if (node.type === 'dir') {
-      blank();
       line('<span class="c-error">cat: ' + esc(args[0]) + ': is a directory</span>');
       line('<span class="c-muted">  use ' + btn('ls') + ' to list its contents</span>');
       blank();
@@ -298,7 +300,6 @@
   }
 
   function cmdPwd() {
-    blank();
     line(esc(cwd));
     blank();
   }
@@ -314,16 +315,13 @@
     const target = args.join(' ').toLowerCase().trim();
     if (target === 'github') {
       window.open('https://github.com/arulster17', '_blank', 'noopener');
-      blank();
       line('<span class="c-accent">↗</span> opening github.com/arulster17...');
       blank();
     } else if (target === 'linkedin') {
       window.open('https://www.linkedin.com/in/arulster17/', '_blank', 'noopener');
-      blank();
       line('<span class="c-accent">↗</span> opening linkedin.com/in/arulster17...');
       blank();
     } else {
-      blank();
       line('<span class="c-error">open: unknown target \'' + esc(target) + '\'</span>');
       line('<span class="c-muted">  try: open github · open linkedin</span>');
       blank();
@@ -355,12 +353,10 @@
         case 'cd':             cmdCd(args);     break;
         case 'cat':            cmdCat(args);    break;
         case 'pwd':            cmdPwd();        break;
-        case 'open':           cmdOpen(args);   break;
         case 'clear':
           cmdClear();
           return; // cmdClear already creates a new prompt
         default:
-          blank();
           line('<span class="c-error">command not found: ' + esc(verb) + '</span>');
           line('  type ' + btn('help') + ' for available commands');
           blank();
@@ -380,6 +376,8 @@
     currentText = inputEl.value;
     syncTyped();
     histIdx = -1;
+    completionCycle = null;
+    if (completionHintEl) { completionHintEl.remove(); completionHintEl = null; }
   });
 
   inputEl.addEventListener('keydown', e => {
@@ -428,14 +426,26 @@
   });
 
   document.addEventListener('click', e => {
-    if (!e.target.closest('a, button')) inputEl.focus();
+    if (!e.target.closest('a, button') && !window.matchMedia('(pointer: coarse)').matches) {
+      inputEl.focus();
+    }
   });
 
   // ── Tab completion ─────────────────────────────────────
 
-  const BASE_CMDS = ['cat ', 'cd ', 'clear', 'help', 'ls', 'open ', 'pwd'];
+  const BASE_CMDS = ['cat ', 'cd ', 'clear', 'help', 'ls', 'pwd'];
 
   function tabComplete() {
+    // If already cycling, advance to next candidate
+    if (completionCycle) {
+      completionCycle.idx = (completionCycle.idx + 1) % completionCycle.candidates.length;
+      currentText = completionCycle.prefix + completionCycle.candidates[completionCycle.idx];
+      inputEl.value = currentText;
+      syncTyped();
+      inputEl.focus();
+      return;
+    }
+
     if (!currentText) return;
     const parts   = currentText.split(/\s+/);
     const verb    = parts[0].toLowerCase();
@@ -470,6 +480,13 @@
         inputEl.value = currentText;
         syncTyped();
       } else if (matches.length > 1) {
+        const prefix = lcp(matches);
+        if (prefix.length > partial.length) {
+          currentText = verb + ' ' + prefix;
+          inputEl.value = currentText;
+          syncTyped();
+        }
+        completionCycle = { candidates: matches, prefix: verb + ' ', idx: -1 };
         showCompletions(matches);
       }
 
@@ -480,6 +497,7 @@
         inputEl.value = currentText;
         syncTyped();
       } else if (opts.length > 1) {
+        completionCycle = { candidates: opts, prefix: 'open ', idx: -1 };
         showCompletions(opts);
       }
     }
@@ -491,25 +509,54 @@
       inputEl.value = currentText;
       syncTyped();
     } else if (matches.length > 1) {
-      showCompletions(matches.map(m => m.trimEnd()));
+      const trimmed = matches.map(m => m.trimEnd());
+      const prefix = lcp(trimmed);
+      if (prefix.length > original.length) {
+        currentText = prefix;
+        inputEl.value = currentText;
+        syncTyped();
+      }
+      completionCycle = { candidates: trimmed, prefix: '', idx: -1 };
+      showCompletions(trimmed);
     }
   }
 
+  function lcp(strs) {
+    if (!strs.length) return '';
+    return strs.reduce((a, s) => {
+      let i = 0;
+      while (i < a.length && a[i] === s[i]) i++;
+      return a.slice(0, i);
+    });
+  }
+
   function showCompletions(matches) {
-    freezePrompt(currentText);
-    line('<span class="completion-hint">  ' + matches.map(esc).join('    ') + '</span>');
-    blank();
-    createPrompt();
-    inputEl.value = currentText;
-    syncTyped();
+    if (completionHintEl) completionHintEl.remove();
+    completionHintEl = document.createElement('div');
+    completionHintEl.className = 'out-line';
+    completionHintEl.innerHTML = '<span class="completion-hint">  ' + matches.map(esc).join('    ') + '</span>';
+    termEl.appendChild(completionHintEl);
     scrollBottom();
+    inputEl.focus();
   }
 
   // ── Welcome ───────────────────────────────────────────
 
   function welcome() {
-    line('<span class="c-muted">use the links above, or type a command below</span>');
-    line('<span class="c-dim">  try: ' + btn('ls') + '  ' + btn('help') + '</span>');
+    const now    = new Date();
+    const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const p      = n => String(n).padStart(2, '0');
+    const dateStr = days[now.getDay()] + ' ' + months[now.getMonth()] + ' ' + p(now.getDate())
+      + ' ' + p(now.getHours()) + ':' + p(now.getMinutes()) + ':' + p(now.getSeconds())
+      + ' ' + now.getFullYear();
+
+    line('<span class="c-text">Last login: ' + esc(dateStr) + '</span>');
+    blank();
+    line('<span class="c-text">============================================</span>');
+    line('  <span class="c-accent">arul mathur</span>  <span class="c-text">cs @ uc san diego</span>');
+    line('<span class="c-text">============================================</span>');
+    line('<span class="c-text">Type ' + btn('help') + ' for a list of commands.</span>');
     blank();
     createPrompt();
     inputEl.focus();

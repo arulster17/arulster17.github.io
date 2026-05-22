@@ -18,7 +18,7 @@
   --error:      #ff6b6b;
   --warn:       #ffd93d;
   --font:       'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  --fs:         15px;
+  --fs:         17px;
   --lh:         1.65;
 }
 
@@ -164,10 +164,8 @@ body::after {
 }
 
 .cursor {
-  color: var(--accent);
+  color: var(--text);
   animation: blink 1.1s step-end infinite;
-  line-height: 1;
-  font-size: 0.9em;
 }
 
 @keyframes blink {
@@ -306,8 +304,7 @@ body::after {
 /* ── Tab completion hint ─────────────────────────── */
 
 .completion-hint {
-  color: var(--dim);
-  font-style: italic;
+  color: var(--muted);
 }
 
 /* ── Welcome banner ──────────────────────────────── */
@@ -315,6 +312,11 @@ body::after {
 .banner-line {
   color: var(--accent);
   line-height: 1.25;
+}
+
+.no-liga {
+  font-feature-settings: "calt" 0, "liga" 0;
+  font-variant-ligatures: none;
 }
 
 /* ── Responsive ──────────────────────────────────── */
