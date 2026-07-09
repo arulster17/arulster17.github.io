@@ -54,6 +54,61 @@
       + esc(label) + '</a>';
   }
 
+  // ── Embed blocks ─────────────────────────────────────
+
+  function appendEmbed(label, html) {
+    const block = document.createElement('div');
+    block.className = 'embed-block embed-open';
+    block.innerHTML =
+      '<div class="embed-header">' +
+        '<span class="embed-label">' + esc(label) + '</span>' +
+        '<button class="cmd-btn embed-toggle" onclick="__term.toggleEmbed(this)">[close]</button>' +
+      '</div>' +
+      '<div class="embed-content">' + html + '</div>';
+    termEl.appendChild(block);
+    scrollBottom();
+  }
+
+  function toggleEmbed(btn) {
+    const block   = btn.closest('.embed-block');
+    const content = block.querySelector('.embed-content');
+    const isOpen  = block.classList.contains('embed-open');
+    if (isOpen) {
+      block.classList.remove('embed-open');
+      content.style.display = 'none';
+      btn.textContent = '[open]';
+    } else {
+      block.classList.add('embed-open');
+      content.style.display = '';
+      btn.textContent = '[close]';
+    }
+    scrollBottom();
+  }
+
+  // ── Project helper ────────────────────────────────────
+
+  function project(opts) {
+    line('<span class="bold">' + esc(opts.title) + '</span>');
+    if (opts.tags && opts.tags.length) {
+      line(opts.tags.map(t => '<span class="chip">' + esc(t) + '</span>').join(' '));
+    }
+    blank();
+    if (opts.desc) {
+      line(esc(opts.desc));
+      blank();
+    }
+    if (opts.links && opts.links.length) {
+      line(opts.links.map(l => aext(l.url, l.label + ' ↗')).join('    '));
+      blank();
+    }
+    if (opts.image) {
+      appendEmbed('image', '<img src="' + esc(opts.image) + '" alt="' + esc(opts.title) + '">');
+    }
+    if (opts.embed) {
+      appendEmbed('demo', '<iframe src="' + esc(opts.embed) + '" loading="lazy" sandbox="allow-scripts allow-same-origin"></iframe>');
+    }
+  }
+
   // ── Filesystem ────────────────────────────────────────
   //
   // Each node: { type: 'dir'|'file', entries?: [...], desc?: '...', show?: fn }
@@ -146,7 +201,7 @@
 
     '~/blog/llm-serving': {
       type: 'dir',
-      desc: 'understanding llm serving — how LLMs are served at scale',
+      desc: 'understanding llm serving - how LLMs are served at scale',
       entries: ['01', '02', '03', '04'],
     },
 
@@ -202,6 +257,13 @@
   function freezePrompt(text) {
     if (completionHintEl) { completionHintEl.remove(); completionHintEl = null; }
     completionCycle = null;
+    termEl.querySelectorAll('.embed-block.embed-open').forEach(block => {
+      block.classList.remove('embed-open');
+      const content = block.querySelector('.embed-content');
+      if (content) content.style.display = 'none';
+      const btn = block.querySelector('.embed-toggle');
+      if (btn) btn.textContent = '[open]';
+    });
     if (activeTypedEl)  activeTypedEl.textContent = text;
     if (activeCursorEl) activeCursorEl.remove();
     activeTypedEl  = activeCursorEl = null;
@@ -368,7 +430,7 @@
     scrollBottom();
   }
 
-  window.__term = { run };
+  window.__term = { run, toggleEmbed };
 
   // ── Input events ──────────────────────────────────────
 
