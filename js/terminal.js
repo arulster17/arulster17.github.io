@@ -98,7 +98,7 @@
       blank();
     }
     if (opts.links && opts.links.length) {
-      line(opts.links.map(l => aext(l.url, l.label + ' ↗')).join('    '));
+      line(opts.links.map(l => aext(l.url, l.label)).join('    '));
       blank();
     }
     if (opts.image) {
@@ -132,7 +132,7 @@
     '~/github': {
       type: 'file',
       show() {
-        line('<span class="c-accent">↗ </span>' + aext('https://github.com/arulster17', 'github.com/arulster17'));
+        line(aext('https://github.com/arulster17', 'github.com/arulster17'));
         blank();
       },
     },
@@ -140,7 +140,7 @@
     '~/linkedin': {
       type: 'file',
       show() {
-        line('<span class="c-accent">↗ </span>' + aext('https://www.linkedin.com/in/arulster17/', 'linkedin.com/in/arulster17'));
+        line(aext('https://www.linkedin.com/in/arulster17/', 'linkedin.com/in/arulster17'));
         blank();
       },
     },
@@ -148,7 +148,7 @@
     '~/resume': {
       type: 'file',
       show() {
-        line('<span class="c-accent">↗ </span>' + aext('/Arul%20Mathur%20Resume.pdf', 'resume.pdf'));
+        line(aext('/Arul%20Mathur%20Resume.pdf', 'resume.pdf'));
         blank();
       },
     },
@@ -220,6 +220,8 @@
 
   function resolvePath(target) {
     if (!target || target === '~') return '~';
+    target = target.replace(/\/+$/, '');            // ignore trailing slash(es)
+    if (!target || target === '~') return '~';
     if (target === '.')            return cwd;
     if (target === '..') {
       if (cwd === '~') return '~';
@@ -276,22 +278,24 @@
   // ── Commands ──────────────────────────────────────────
 
   function cmdHelp() {
-    line('<span class="out-heading">commands</span>');
-    rule();
+    line('<span class="c-muted">available commands</span>');
+    blank();
     [
       ['ls',           'list directory contents'],
-      ['cd &lt;dir&gt;',     'navigate into a directory'],
+      ['cd <dir>',     'change directory'],
       ['cd ..',        'go up one level'],
-      ['cat &lt;file&gt;',   'read a file'],
-      ['pwd',          'show current path'],
-      ['clear',        'clear the terminal'],
+      ['cat <file>',   'print a file'],
+      ['pwd',          'print working directory'],
+      ['theme <name>', 'switch color scheme'],
+      ['clear',        'clear the screen'],
       ['help',         'show this message'],
     ].forEach(([name, desc]) => {
-      line('  <span class="c-accent">' + name + '</span>  '
-        + '<span class="c-muted">→ ' + esc(desc) + '</span>');
+      const pad = ' '.repeat(Math.max(2, 15 - name.length));
+      line('  <span class="c-accent">' + esc(name) + '</span>' + pad
+        + '<span class="c-text">' + esc(desc) + '</span>');
     });
     blank();
-    line('<span class="c-muted">  ↑↓ history  ·  tab completion</span>');
+    line('<span class="c-muted">history: ↑/↓    completion: tab</span>');
     blank();
   }
 
@@ -330,11 +334,6 @@
     }
 
     cwd = path;
-
-    if (node.desc) {
-      line('<span class="c-muted">' + esc(node.desc) + '</span>');
-      blank();
-    }
   }
 
   function cmdCat(args) {
@@ -377,15 +376,66 @@
     const target = args.join(' ').toLowerCase().trim();
     if (target === 'github') {
       window.open('https://github.com/arulster17', '_blank', 'noopener');
-      line('<span class="c-accent">↗</span> opening github.com/arulster17...');
+      line('opening github.com/arulster17...');
       blank();
     } else if (target === 'linkedin') {
       window.open('https://www.linkedin.com/in/arulster17/', '_blank', 'noopener');
-      line('<span class="c-accent">↗</span> opening linkedin.com/in/arulster17...');
+      line('opening linkedin.com/in/arulster17...');
       blank();
     } else {
       line('<span class="c-error">open: unknown target \'' + esc(target) + '\'</span>');
-      line('<span class="c-muted">  try: open github · open linkedin</span>');
+      line('<span class="c-muted">  try: open github, open linkedin</span>');
+      blank();
+    }
+  }
+
+  // ── Themes ────────────────────────────────────────────
+
+  const THEMES = ['default', 'hacker', 'amber', 'solarized', 'paper', 'grey'];
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'default';
+  }
+
+  function setTheme(name) {
+    if (THEMES.indexOf(name) === -1) return false;
+    document.documentElement.setAttribute('data-theme', name);
+    try { localStorage.setItem('theme', name); } catch (e) {}
+    syncThemeDots();
+    return true;
+  }
+
+  function syncThemeDots() {
+    const cur = currentTheme();
+    document.querySelectorAll('.theme-dot').forEach(dot => {
+      dot.classList.toggle('active', dot.getAttribute('data-theme-set') === cur);
+    });
+  }
+
+  function cmdTheme(args) {
+    const name = (args[0] || '').toLowerCase();
+
+    if (!name) {
+      const cur = currentTheme();
+      line('<span class="c-muted">available themes</span>');
+      blank();
+      THEMES.forEach(t => {
+        const marker = t === cur ? '<span class="c-accent">*</span>' : ' ';
+        line('  ' + marker + ' <button class="cmd-btn" onclick="__term.run('
+          + JSON.stringify('theme ' + t) + ')">' + esc(t) + '</button>');
+      });
+      blank();
+      line('<span class="c-muted">usage: theme &lt;name&gt;</span>');
+      blank();
+      return;
+    }
+
+    if (setTheme(name)) {
+      line('theme set to <span class="c-accent">' + esc(name) + '</span>');
+      blank();
+    } else {
+      line('<span class="c-error">theme: unknown theme \'' + esc(name) + '\'</span>');
+      line('<span class="c-muted">  try: ' + THEMES.join(', ') + '</span>');
       blank();
     }
   }
@@ -415,6 +465,7 @@
         case 'cd':             cmdCd(args);     break;
         case 'cat':            cmdCat(args);    break;
         case 'pwd':            cmdPwd();        break;
+        case 'theme':          cmdTheme(args);  break;
         case 'clear':
           cmdClear();
           return; // cmdClear already creates a new prompt
@@ -430,7 +481,14 @@
     scrollBottom();
   }
 
-  window.__term = { run, toggleEmbed };
+  window.__term = { run, toggleEmbed, setTheme };
+
+  // ── Sidebar theme switcher ────────────────────────────
+
+  document.querySelectorAll('.theme-dot').forEach(dot => {
+    dot.addEventListener('click', () => setTheme(dot.getAttribute('data-theme-set')));
+  });
+  syncThemeDots();
 
   // ── Input events ──────────────────────────────────────
 
@@ -495,7 +553,7 @@
 
   // ── Tab completion ─────────────────────────────────────
 
-  const BASE_CMDS = ['cat ', 'cd ', 'clear', 'help', 'ls', 'pwd'];
+  const BASE_CMDS = ['cat ', 'cd ', 'clear', 'help', 'ls', 'pwd', 'theme '];
 
   function tabComplete() {
     // If already cycling, advance to next candidate
@@ -517,38 +575,44 @@
       // complete command name
       const matches = BASE_CMDS.filter(c => c.startsWith(verb));
       applySingleOrMulti(matches, currentText);
+      // If it resolved to a command that takes an argument (trailing space),
+      // chain straight into its argument completion so the list shows now.
+      if (matches.length === 1 && matches[0].endsWith(' ')) tabComplete();
 
     } else if (verb === 'cd' || verb === 'cat') {
-      const entries = cwdEntries();
-      let matches = entries.filter(e => e.toLowerCase().startsWith(partial.toLowerCase()));
+      // Support nested paths like "blog/" or "blog/ll" by completing within
+      // the directory named before the last slash.
+      const slash     = partial.lastIndexOf('/');
+      const dirPrefix = slash === -1 ? '' : partial.slice(0, slash + 1); // keeps trailing slash
+      const leaf      = slash === -1 ? partial : partial.slice(slash + 1);
 
-      if (verb === 'cd') {
-        // only directories + '..'
-        matches = matches.filter(e => {
-          const p = cwd === '~' ? '~/' + e : cwd + '/' + e;
-          return FS[p] && FS[p].type === 'dir';
-        });
-        if (cwd !== '~' && '..'.startsWith(partial)) matches.unshift('..');
-      } else {
-        // only files for cat
-        matches = matches.filter(e => {
-          const p = cwd === '~' ? '~/' + e : cwd + '/' + e;
-          return FS[p] && FS[p].type === 'file';
-        });
+      const baseDir  = dirPrefix ? resolvePath(dirPrefix.replace(/\/+$/, '')) : cwd;
+      const baseNode = FS[baseDir];
+      const entries  = (baseNode && baseNode.type === 'dir') ? baseNode.entries : [];
+
+      let matches = entries.filter(e => e.toLowerCase().startsWith(leaf.toLowerCase()));
+
+      const wantType = verb === 'cd' ? 'dir' : 'file';
+      matches = matches.filter(e => {
+        const p = baseDir === '~' ? '~/' + e : baseDir + '/' + e;
+        return FS[p] && FS[p].type === wantType;
+      });
+      if (verb === 'cd' && !dirPrefix && cwd !== '~' && '..'.startsWith(leaf)) {
+        matches.unshift('..');
       }
 
       if (matches.length === 1) {
-        currentText = verb + ' ' + matches[0];
+        currentText = verb + ' ' + dirPrefix + matches[0];
         inputEl.value = currentText;
         syncTyped();
       } else if (matches.length > 1) {
         const prefix = lcp(matches);
-        if (prefix.length > partial.length) {
-          currentText = verb + ' ' + prefix;
+        if (prefix.length > leaf.length) {
+          currentText = verb + ' ' + dirPrefix + prefix;
           inputEl.value = currentText;
           syncTyped();
         }
-        completionCycle = { candidates: matches, prefix: verb + ' ', idx: -1 };
+        completionCycle = { candidates: matches, prefix: verb + ' ' + dirPrefix, idx: -1 };
         showCompletions(matches);
       }
 
@@ -560,6 +624,23 @@
         syncTyped();
       } else if (opts.length > 1) {
         completionCycle = { candidates: opts, prefix: 'open ', idx: -1 };
+        showCompletions(opts);
+      }
+
+    } else if (verb === 'theme') {
+      const opts = THEMES.filter(o => o.startsWith(partial.toLowerCase()));
+      if (opts.length === 1) {
+        currentText = 'theme ' + opts[0];
+        inputEl.value = currentText;
+        syncTyped();
+      } else if (opts.length > 1) {
+        const prefix = lcp(opts);
+        if (prefix.length > partial.length) {
+          currentText = 'theme ' + prefix;
+          inputEl.value = currentText;
+          syncTyped();
+        }
+        completionCycle = { candidates: opts, prefix: 'theme ', idx: -1 };
         showCompletions(opts);
       }
     }
@@ -618,10 +699,9 @@
     line('<span class="c-text">============================================</span>');
     line('  <span class="c-accent">arul mathur</span>  <span class="c-text">cs @ uc san diego</span>');
     line('<span class="c-text">============================================</span>');
-    line('<span class="c-text">Type ' + btn('help') + ' for a list of commands.</span>');
     blank();
     createPrompt();
-    inputEl.focus();
+    run('help');
   }
 
   welcome();
